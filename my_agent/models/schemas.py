@@ -19,14 +19,14 @@ class RouterOutput(BaseModel):
     )
     reasoning: str = Field(description="Explanation for this classification")
 
-    analysis_type: str | None = Field(
+    analysis_type: Optional[str] = Field(
         default=None,
         description=(
             "The type of analysis requested (trend_analysis, variance_analysis, "
             "forecast_comparison, anomaly_detection, ranking, simulation, distribution_analysis)"
         ),
     )
-    entity_type: str | None = Field(
+    entity_type: Optional[str] = Field(
         default=None,
         description=(
             "The main entity or column being analyzed "
@@ -40,7 +40,7 @@ class RouterOutput(BaseModel):
     #         "(month, projection_version, scenario, category, none)"
     #     ),
     # )
-    requires_chart: bool | None = Field(
+    requires_chart: Optional[bool] = Field(
         default=None,
         description="Whether a chart or visualization is explicitly requested or naturally fits the query",
     )
@@ -48,7 +48,7 @@ class RouterOutput(BaseModel):
     #     default=None,
     #     description="Whether the query requests statistical metrics",
     # )
-    requires_simulation: bool | None = Field(
+    requires_simulation: Optional[bool] = Field(
         default=None,
         description="Whether the query requests forecasting, predictive modeling, or what-if simulations",
     )
