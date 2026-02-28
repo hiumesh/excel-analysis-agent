@@ -1,6 +1,6 @@
 """Coding Agent node for executing Python code to analyze Excel data."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -39,7 +39,7 @@ async def coding_agent_node(state: CodingSubgraphState) -> Dict[str, Any]:
     # Force tool_choice="any" until at least one real tool execution has occurred,
     # then switch to "auto" so the model can provide its final analysis.
     # OpenAI and Anthropic models handle tool calling reliably without this workaround.
-    tool_choice: str | None = None  # None = provider default ("auto")
+    tool_choice: Optional[str] = None  # None = provider default ("auto")
     if ModelConfig.CODING_MODEL.startswith("gemini"):
         from langchain_core.messages import ToolMessage
         has_tool_executions = any(
