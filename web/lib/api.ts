@@ -1,0 +1,135 @@
+// Point directly to the backend to bypass Next.js proxy timeouts on long-running streams (SSE)
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api`;
+
+export interface UploadResult {
+  success: boolean;
+  file_path: string;
+  filename: string;
+}
+
+export interface StreamEvent {
+  node?: string;
+  is_subgraph?: boolean;
+  update?: {
+    messages?: Array<{
+      type: string;
+      content: string;
+      tool_calls?: Array<{ name: string; args: any }>;
+    }>;
+    artifacts?: Artifact[];
+    final_analysis?: string;
+    route_decision?: { reasoning?: string; [key: string]: any };
+    supervisor_decision?: { reasoning?: string; [key: string]: any };
+    analysis_plan?: string;
+    [key: string]: any;
+  };
+  thread_id?: string;
+  status?: string;
+  error?: string;
+}
+
+export interface Artifact {
+  type: string;
+  content: string;
+  title?: string;
+  url?: string;
+}
+
+export async function uploadFile(file: File): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ detail: "Upload failed" }));
+    throw new Error(error.detail || "Upload failed");
+  }
+
+  return response.json();
+}
+
+export async function streamAnalysis(
+  query: string,
+  filePath: string | null,
+  threadId: string | null,
+  onEvent: (event: StreamEvent) => void,
+  onDone: () => void,
+  onError: (error: string) => void,
+): Promise<AbortController> {
+  const controller = new AbortController();
+
+  try {
+    const response = await fetch(`${API_BASE}/analyze/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query,
+        file_path: filePath,
+        thread_id: threadId,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ detail: "Analysis failed" }));
+      onError(error.detail || "Analysis failed");
+      return controller;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      onError("No response stream available");
+      return controller;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    const processStream = async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("data: ")) {
+              const jsonStr = trimmed.slice(6);
+              try {
+                const event: StreamEvent = JSON.parse(jsonStr);
+                onEvent(event);
+              } catch {
+                // Skip malformed JSON
+              }
+            }
+          }
+        }
+        onDone();
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          onError((err as Error).message || "Stream error");
+        }
+      }
+    };
+
+    processStream();
+  } catch (err) {
+    if ((err as Error).name !== "AbortError") {
+      onError((err as Error).message || "Connection failed");
+    }
+  }
+
+  return controller;
+}
