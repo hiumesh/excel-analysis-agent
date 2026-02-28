@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Environment variables
+.env
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# pytest
+.pytest_cache/
+
+# Sandbox
+.sandbox/
+
+# LangGraph
+.langgraph_api/
+
+# Generated CSV files
+*_value_counts.csv
+
+# Uploads
+uploads/
+
+# Claude
+.claude/
