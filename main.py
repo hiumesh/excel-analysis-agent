@@ -48,6 +48,9 @@ app.add_middleware(
 UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+# Default static datasource — used when no file_path is provided in the request
+DEFAULT_SOURCE_FILE = str(Path("data/source.xlsx").absolute())
+
 # Ensure sandbox directories exist so mounting doesn't fail
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 TABLES_DIR.mkdir(parents=True, exist_ok=True)
@@ -108,7 +111,7 @@ async def analyze_excel(request: AnalyzeRequest):
         # Only pass the new message — checkpointer handles history via thread_id
         input_state = {
             "messages": [HumanMessage(content=request.query)],
-            "excel_file_path": request.file_path,  # Always pass — None clears stale paths
+            "excel_file_path": request.file_path or DEFAULT_SOURCE_FILE,
         }
             
         # Invoke the graph
@@ -181,7 +184,7 @@ async def analyze_excel_stream(request: AnalyzeRequest):
                 # Only pass the new message — checkpointer handles history via thread_id
                 input_state = {
                     "messages": [HumanMessage(content=request.query)],
-                    "excel_file_path": request.file_path,  # Always pass — None clears stale paths
+                    "excel_file_path": request.file_path or DEFAULT_SOURCE_FILE,
                 }
                     
                 thread_id = request.thread_id or str(uuid.uuid4())
