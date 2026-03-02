@@ -1,19 +1,27 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ChatMessage } from "@/components/ChatMessage";
-import { FileUpload } from "@/components/FileUpload";
+// NOTE: File upload commented out — datasource is now static from backend
+// import { FileUpload } from "@/components/FileUpload";
 import { ArtifactsPanel } from "@/components/ArtifactsPanel";
 import { StreamingIndicator } from "@/components/StreamingIndicator";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   streamAnalysis,
-  type UploadResult,
+  // type UploadResult,
   type Artifact,
   type StreamEvent,
 } from "@/lib/api";
-import { Send, Paperclip, X, Sparkles, BarChart3, Plus } from "lucide-react";
+import {
+  Send,
+  /* Paperclip, */ X,
+  Sparkles,
+  BarChart3,
+  Plus,
+} from "lucide-react";
 
 interface Message {
   id: string;
@@ -31,8 +39,9 @@ export function ChatPage() {
   const [currentNode, setCurrentNode] = useState<string | null>(null);
   const [reasoningSteps, setReasoningSteps] = useState<string[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
-  const [uploadedFile, setUploadedFile] = useState<UploadResult | null>(null);
-  const [showFileUpload, setShowFileUpload] = useState(false);
+  // NOTE: Upload state commented out — datasource is static from backend
+  // const [uploadedFile, setUploadedFile] = useState<UploadResult | null>(null);
+  // const [showFileUpload, setShowFileUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
 
@@ -62,7 +71,7 @@ export function ChatPage() {
 
     setInput("");
     setError(null);
-    setShowFileUpload(false);
+    // setShowFileUpload(false);
 
     // Add user message (display the clean query to the user)
     const userMsg: Message = {
@@ -76,20 +85,22 @@ export function ChatPage() {
     setReasoningSteps([]);
     setArtifacts([]);
 
-    // Build the query to send to backend — include file context so the LLM knows a file is available
-    const backendQuery = uploadedFile
-      ? `[Uploaded file: ${uploadedFile.filename}]\n${query}`
-      : query;
+    // NOTE: File context in query commented out — datasource is static from backend
+    // const backendQuery = uploadedFile
+    //   ? `[Uploaded file: ${uploadedFile.filename}]\n${query}`
+    //   : query;
+    const backendQuery = query;
 
     let latestNode = "";
     const currentReasoningSteps: string[] = [];
 
-    const addReasoningStep = (text: string) => {
-      if (!currentReasoningSteps.includes(text)) {
-        currentReasoningSteps.push(text);
-        setReasoningSteps([...currentReasoningSteps]);
-      }
-    };
+    // NOTE: Reasoning steps are commented out — not displayed in the current UI
+    // const addReasoningStep = (text: string) => {
+    //   if (!currentReasoningSteps.includes(text)) {
+    //     currentReasoningSteps.push(text);
+    //     setReasoningSteps([...currentReasoningSteps]);
+    //   }
+    // };
 
     const onEvent = (event: StreamEvent) => {
       if (event.status === "completed") return;
@@ -108,47 +119,45 @@ export function ChatPage() {
         setCurrentNode(event.node);
       }
 
-      // Process reasoning events and show in the loader instead of as chat messages
-      if (event.update?.route_decision?.reasoning) {
-        addReasoningStep(event.update.route_decision.reasoning);
-      }
+      // NOTE: Reasoning step collection is commented out — not displayed in current UI
+      // if (event.update?.route_decision?.reasoning) {
+      //   addReasoningStep(event.update.route_decision.reasoning);
+      // }
 
-      if (event.update?.supervisor_decision?.reasoning) {
-        addReasoningStep(event.update.supervisor_decision.reasoning);
-      }
+      // if (event.update?.supervisor_decision?.reasoning) {
+      //   addReasoningStep(event.update.supervisor_decision.reasoning);
+      // }
 
-      if (event.update?.analysis_plan) {
-        addReasoningStep(`**Analysis Plan:**\n${event.update.analysis_plan}`);
-      }
+      // if (event.update?.analysis_plan) {
+      //   addReasoningStep(`**Analysis Plan:**\n${event.update.analysis_plan}`);
+      // }
 
       // Process messages from the event
       if (event.update?.messages) {
         // Collect subgraph/coding agent internal reasoning
+        // NOTE: Subgraph reasoning extraction is commented out — not displayed in current UI
         if (event.is_subgraph && latestNode === "coding_agent") {
-          for (const msg of event.update.messages) {
-            // Extract the orchestrator's raw "Thinking: " text if present
-            if (msg.type === "AIMessage" && msg.content) {
-              const thinkingMatch = msg.content.match(
-                /Thinking:\s*([\s\S]*?)(?=\n\n|$)/i,
-              );
-              if (thinkingMatch && thinkingMatch[1].trim()) {
-                const thought = thinkingMatch[1].trim();
-                addReasoningStep(thought);
-              }
-            }
-
-            // Extract the 'reasoning' or 'reflection' arguments from standard tool calls
-            if (msg.tool_calls) {
-              for (const tc of msg.tool_calls) {
-                const args = tc.args || {};
-                const reasoning = args.reasoning || args.reflection;
-                if (reasoning && typeof reasoning === "string") {
-                  const text = reasoning.trim();
-                  addReasoningStep(text);
-                }
-              }
-            }
-          }
+          // for (const msg of event.update.messages) {
+          //   if (msg.type === "AIMessage" && msg.content) {
+          //     const thinkingMatch = msg.content.match(
+          //       /Thinking:\s*([\s\S]*?)(?=\n\n|$)/i,
+          //     );
+          //     if (thinkingMatch && thinkingMatch[1].trim()) {
+          //       const thought = thinkingMatch[1].trim();
+          //       addReasoningStep(thought);
+          //     }
+          //   }
+          //   if (msg.tool_calls) {
+          //     for (const tc of msg.tool_calls) {
+          //       const args = tc.args || {};
+          //       const reasoning = args.reasoning || args.reflection;
+          //       if (reasoning && typeof reasoning === "string") {
+          //         const text = reasoning.trim();
+          //         addReasoningStep(text);
+          //       }
+          //     }
+          //   }
+          // }
         }
 
         // Only show messages if they come from end-user facing nodes (not internal reasoning)
@@ -211,13 +220,13 @@ export function ChatPage() {
 
     abortRef.current = await streamAnalysis(
       backendQuery,
-      uploadedFile?.file_path ?? null,
+      null, // file_path — datasource is static from backend
       threadId,
       onEvent,
       onDone,
       onError,
     );
-  }, [input, isStreaming, uploadedFile, threadId]);
+  }, [input, isStreaming, threadId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -238,8 +247,8 @@ export function ChatPage() {
     setArtifacts([]);
     setError(null);
     setThreadId(null);
-    setUploadedFile(null);
-    setShowFileUpload(false);
+    // setUploadedFile(null);
+    // setShowFileUpload(false);
     setInput("");
     setCurrentNode(null);
     setReasoningSteps([]);
@@ -253,27 +262,33 @@ export function ChatPage() {
       <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl flex items-center justify-between px-6 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center h-9 w-9 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10">
-              <BarChart3 className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-center">
+              <Image
+                src="/isb_identity_colour_rgb_positive.svg"
+                alt="ISB Logo"
+                width={80}
+                height={40}
+              />
             </div>
-            <div>
+            {/* <div>
               <h1 className="text-base font-semibold text-foreground tracking-tight">
                 Excel Analysis Agent
               </h1>
               <p className="text-[11px] text-muted-foreground leading-none">
                 Upload a spreadsheet and ask questions
               </p>
-            </div>
+            </div> */}
           </div>
           <div className="flex items-center gap-2">
-            {uploadedFile && (
+            {/* NOTE: Upload file badge commented out — datasource is static from backend */}
+            {/* {uploadedFile && (
               <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="truncate max-w-[150px]">
                   {uploadedFile.filename}
                 </span>
               </div>
-            )}
+            )} */}
             {!isEmpty && (
               <Button
                 variant="outline"
@@ -307,55 +322,33 @@ export function ChatPage() {
                   </div>
                   <div>
                     <h2 className="text-xl font-semibold text-foreground mb-2">
-                      Analyze Your Data
+                      Report IQ
                     </h2>
                     <p className="text-sm text-muted-foreground leading-relaxed">
-                      Upload an Excel or CSV file and ask questions about your
-                      data. I&apos;ll generate insights, charts, and statistical
-                      analysis.
+                      Ask questions about your data. I&apos;ll generate
+                      insights, charts, and statistical analysis.
                     </p>
                   </div>
 
-                  {/* Quick start file upload */}
-                  {!uploadedFile && (
-                    <div className="w-full mt-2">
-                      <FileUpload
-                        onFileUploaded={setUploadedFile}
-                        onFileRemoved={() => setUploadedFile(null)}
-                        uploadedFile={uploadedFile}
-                        disabled={isStreaming}
-                      />
-                    </div>
-                  )}
-
-                  {uploadedFile && (
-                    <div className="flex flex-col gap-3 w-full">
-                      <FileUpload
-                        onFileUploaded={setUploadedFile}
-                        onFileRemoved={() => setUploadedFile(null)}
-                        uploadedFile={uploadedFile}
-                        disabled={isStreaming}
-                      />
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        {[
-                          "Summarize this data",
-                          "Show key statistics",
-                          "Find trends and patterns",
-                        ].map((suggestion) => (
-                          <button
-                            key={suggestion}
-                            onClick={() => {
-                              setInput(suggestion);
-                              inputRef.current?.focus();
-                            }}
-                            className="text-xs px-3 py-1.5 rounded-full border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all duration-200"
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* NOTE: File upload UI commented out — datasource is static from backend */}
+                  <div className="flex flex-wrap gap-2 justify-center mt-2">
+                    {[
+                      "Summarize this data",
+                      "Show key statistics",
+                      "Find trends and patterns",
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => {
+                          setInput(suggestion);
+                          inputRef.current?.focus();
+                        }}
+                        className="text-xs px-3 py-1.5 rounded-full border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all duration-200"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -400,8 +393,8 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* File upload dropdown */}
-      {showFileUpload && !isEmpty && (
+      {/* NOTE: File upload dropdown commented out — datasource is static from backend */}
+      {/* {showFileUpload && !isEmpty && (
         <div className="mx-auto max-w-4xl w-full px-6">
           <div className="mb-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
             <FileUpload
@@ -415,13 +408,13 @@ export function ChatPage() {
             />
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Input area */}
       <div className="sticky bottom-0 border-t border-border/40 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl px-6 py-3">
-          {/* Uploaded file chip */}
-          {uploadedFile && !isEmpty && (
+          {/* NOTE: Uploaded file chip commented out — datasource is static from backend */}
+          {/* {uploadedFile && !isEmpty && (
             <div className="mb-2">
               <FileUpload
                 onFileUploaded={setUploadedFile}
@@ -430,11 +423,11 @@ export function ChatPage() {
                 disabled={isStreaming}
               />
             </div>
-          )}
+          )} */}
 
           <div className="flex items-end gap-2">
-            {/* Attach button */}
-            <Button
+            {/* NOTE: Attach button commented out — datasource is static from backend */}
+            {/* <Button
               variant="ghost"
               size="icon"
               className="shrink-0 h-10 w-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -442,7 +435,7 @@ export function ChatPage() {
               disabled={isStreaming}
             >
               <Paperclip className="h-5 w-5" />
-            </Button>
+            </Button> */}
 
             {/* Text input */}
             <div className="flex-1 relative">
@@ -451,11 +444,7 @@ export function ChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={
-                  uploadedFile
-                    ? "Ask about your data..."
-                    : "Upload a file first, then ask a question..."
-                }
+                placeholder="Ask about your data..."
                 rows={1}
                 className="w-full resize-none overflow-hidden rounded-xl border border-border/50 bg-muted/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-200"
                 disabled={isStreaming}
