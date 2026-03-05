@@ -9,11 +9,13 @@ from my_agent.helpers.sandbox_client import (
     install_package_via_server,
     reset_context_via_server,
 )
+from my_agent.core.execution_var import get_current_session_id
 
 
 async def reset_execution_context():
     """Reset the execution context in the sandbox server."""
-    await reset_context_via_server()
+    session_id = get_current_session_id()
+    await reset_context_via_server(session_id=session_id)
 
 
 @tool(parse_docstring=True)
@@ -84,7 +86,8 @@ async def python_repl_tool(reasoning: str, code: str) -> Dict[str, Any]:
         >>> await python_repl_tool("Initializing simple dataframe.", "import pandas as pd\\ndf = pd.DataFrame({'a': [1, 2, 3]})")
         {'success': True, 'output': '', 'error': None, 'plots': [], 'tables': []}
     """
-    return await execute_code_via_server(code)
+    session_id = get_current_session_id()
+    return await execute_code_via_server(code, session_id=session_id)
 
 
 @tool
@@ -145,5 +148,6 @@ async def bash_tool(reasoning: str, command: str) -> Dict[str, Any]:
                 "error": f"Invalid package name '{pkg}'. Only alphanumeric characters, hyphens, underscores, dots, and version specifiers are allowed."
             }
 
+    session_id = get_current_session_id()
     package_spec = " ".join(package_names)
-    return await install_package_via_server(package_spec)
+    return await install_package_via_server(package_spec, session_id=session_id)

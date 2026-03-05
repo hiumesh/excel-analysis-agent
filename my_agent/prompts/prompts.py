@@ -250,10 +250,27 @@ DATA CONTEXT:
 {data_context}
 
 EXCEL FILE PATH: {excel_file_path}
+TOTAL ROWS IN DATASET: {total_rows}
+
+PRELOADED DATA:
+The full DataFrame may already be available as `__preloaded_df` in your execution context.
+ALWAYS try to use the preloaded data first to avoid re-reading the file from disk:
+```
+if '__preloaded_df' in dir():
+    df = __preloaded_df
+else:
+    df = pd.read_excel("{excel_file_path}")
+```
 
 PRE-DEFINED VARIABLES:
 The variable `plots_dir` is ALREADY AVAILABLE in your execution context with value: {plots_dir}
 You can use it directly without defining it: plt.savefig(f"{{plots_dir}}/plot_name.png")
+
+PLOT URL BASE: {plots_url}
+Use this base URL to embed plots in your final analysis as markdown images.
+
+LARGE FILE HINTS:
+{large_file_hints}
 
 VISUALIZATION REQUIREMENTS:
 CRITICAL: When creating visualizations, YOU MUST save them using:
@@ -268,11 +285,21 @@ Plot saving guidelines:
 - Remember to save BEFORE plt.show() or plt.close()
 - Example: plt.savefig(f"{{plots_dir}}/revenue_forecast.png", dpi=300, bbox_inches='tight')
 
+EMBEDDING PLOTS IN FINAL ANALYSIS:
+When referencing plots in your final analysis, you MUST embed them as markdown images
+using the PLOT URL BASE, NOT just mention the filename. Use this format:
+  ![Descriptive caption]({plots_url}/filename.png)
+
+Example — WRONG:
+  "The trend is shown in amount_trends.png"
+Example — CORRECT:
+  "The trend is shown below:\n![Amount Trends Over Time]({plots_url}/amount_trends.png)"
+
 Steps to follow:
-1. Load the Excel file into a pandas DataFrame named 'df'.
+1. Load the data using `__preloaded_df` if available, otherwise read the file.
 2. Execute the necessary steps of the analysis plan. For simple tasks, do this all at once. For complex modeling or multi-step derivations, you may execute step-by-step, inspecting the output of each before writing the next code block.
 3. When creating plots or tables, save them with descriptive names to the plots directory.
 4. Handle any errors that occur.
-5. Provide a clear, naturalized final analysis that directly answers the user's question. DO NOT list the steps you took (e.g., skip "1. Data Loading...", "2. Analysis..."). Just give the answer, insights, and mention any saved plots.
+5. Provide a clear, naturalized final analysis that directly answers the user's question. DO NOT list the steps you took. Just give the answer, insights, and EMBED any saved plots as markdown images using ![caption]({plots_url}/filename.png).
 
 Use the python_repl_tool to execute your code. Aim to be efficient with your iteration count."""
