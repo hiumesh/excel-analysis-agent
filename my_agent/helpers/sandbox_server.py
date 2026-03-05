@@ -9,10 +9,14 @@ Run this server in a separate terminal:
 The server will run on http://localhost:8765
 """
 
+import asyncio
+import io
+import shutil
 import sys
+import threading
+import time
 import traceback
 from datetime import datetime
-from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -24,12 +28,12 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from my_agent.helpers.sandbox import (
-    PLOTS_DIR,
     SANDBOX_DIR,
-    TABLES_DIR,
     VENV_DIR,
     ensure_sandbox_exists,
     get_pip_executable,
+    get_session_plots_dir,
+    get_session_tables_dir,
 )
 
 # CRITICAL: Add venv site-packages to sys.path so exec() can find installed packages
@@ -54,8 +58,91 @@ if not ensure_sandbox_exists():
 
 # In-memory storage for session execution contexts
 SESSION_CONTEXTS: Dict[str, Dict[str, Any]] = {}
+# Track last activity time per session (epoch seconds)
+SESSION_LAST_ACTIVE: Dict[str, float] = {}
+
+# Cleanup configuration
+SESSION_TTL_MINUTES: int = 30        # Sessions inactive for this long are removed
+CLEANUP_INTERVAL_SECONDS: int = 300  # Run cleanup every 5 minutes
+
+# Background file preload cache: key = "session_id::file_path", value = DataFrame
+PRELOAD_CACHE: Dict[str, Any] = {}
+# Shared preload cache for default/common files — never evicted by session reset
+# key = absolute file_path, value = DataFrame
+SHARED_PRELOAD: Dict[str, Any] = {}
+_preload_lock = threading.Lock()
 
 app = FastAPI(title="Sandbox Execution Server")
+
+
+def _sync_preload_default():
+    """Eagerly load the default data source at startup (blocking, runs once)."""
+    default_source = str(Path("data/source.csv").absolute())
+    if not Path(default_source).exists():
+        print(f"⚠️  Default source file not found: {default_source} — skipping preload")
+        return
+
+    import pandas as pd
+    try:
+        if default_source.lower().endswith(".csv"):
+            df = pd.read_csv(default_source)
+        else:
+            df = pd.read_excel(default_source)
+        SHARED_PRELOAD[default_source] = df
+        print(f"✅ Default file preloaded at startup: {default_source} ({len(df)} rows)")
+    except Exception as e:
+        print(f"❌ Failed to preload default file: {e}")
+
+
+def _cleanup_session(session_id: str) -> None:
+    """Remove a single session: context, preload cache entries, and on-disk files."""
+    # 1. Remove in-memory state
+    SESSION_CONTEXTS.pop(session_id, None)
+    SESSION_LAST_ACTIVE.pop(session_id, None)
+
+    # 2. Evict preload cache entries
+    with _preload_lock:
+        keys = [k for k in PRELOAD_CACHE if k.startswith(f"{session_id}::")]
+        for k in keys:
+            del PRELOAD_CACHE[k]
+
+    # 3. Delete on-disk session directory (plots, tables)
+    from my_agent.helpers.sandbox import get_session_dir
+    session_dir = get_session_dir(session_id)
+    if session_dir.exists():
+        shutil.rmtree(str(session_dir), ignore_errors=True)
+
+    print(f"🗑️  Cleaned up session: {session_id}")
+
+
+async def _session_cleanup_worker():
+    """Background task that periodically removes inactive sessions."""
+    print(f"🧹 Session cleanup worker started (TTL={SESSION_TTL_MINUTES}min, interval={CLEANUP_INTERVAL_SECONDS}s)")
+    while True:
+        await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
+        now = time.time()
+        ttl_seconds = SESSION_TTL_MINUTES * 60
+        expired = [
+            sid for sid, last in list(SESSION_LAST_ACTIVE.items())
+            if (now - last) > ttl_seconds
+        ]
+        if expired:
+            print(f"🧹 Cleaning {len(expired)} inactive session(s): {expired}")
+            for sid in expired:
+                _cleanup_session(sid)
+        # Also report stats periodically
+        print(
+            f"📊 Sessions: {len(SESSION_CONTEXTS)} active, "
+            f"{len(PRELOAD_CACHE)} preloaded, "
+            f"{len(SHARED_PRELOAD)} shared"
+        )
+
+
+@app.on_event("startup")
+async def startup_tasks():
+    """Preload default data source and start the cleanup worker."""
+    _sync_preload_default()
+    asyncio.create_task(_session_cleanup_worker())
 
 
 class ExecuteRequest(BaseModel):
@@ -71,6 +158,12 @@ class ResetRequest(BaseModel):
     session_id: str = "default"
 
 
+class PreloadRequest(BaseModel):
+    file_path: str
+    session_id: str = "default"
+    shared: bool = False  # If True, store in SHARED_PRELOAD (reused across all sessions)
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -78,13 +171,75 @@ async def health_check():
         "status": "healthy",
         "sandbox_dir": str(SANDBOX_DIR),
         "active_sessions": len(SESSION_CONTEXTS),
+        "preloaded_files": len(PRELOAD_CACHE),
     }
+
+
+@app.post("/preload", status_code=202)
+async def preload_file(request: PreloadRequest) -> Dict[str, Any]:
+    """Start background file loading into the preload cache.
+
+    Returns 202 immediately while the file loads in a background thread.
+    The cached DataFrame will be injected into execution contexts automatically.
+
+    If ``shared=True``, the file is stored in SHARED_PRELOAD and reused by
+    every session that uses the same file path (ideal for the default source).
+    """
+    abs_path = str(Path(request.file_path).absolute())
+
+    # Always record the file path in the session context so `/execute`
+    # can look it up in SHARED_PRELOAD even if this preload is a no-op.
+    if request.session_id not in SESSION_CONTEXTS:
+        session_plots_dir = get_session_plots_dir(request.session_id)
+        SESSION_CONTEXTS[request.session_id] = {
+            "plots_dir": str(session_plots_dir),
+            "__file_path": abs_path,
+        }
+    else:
+        SESSION_CONTEXTS[request.session_id]["__file_path"] = abs_path
+
+    # Track activity for cleanup worker
+    SESSION_LAST_ACTIVE[request.session_id] = time.time()
+
+    # Check if already in the shared cache
+    if abs_path in SHARED_PRELOAD:
+        return {"status": "already_cached_shared", "file_path": abs_path}
+
+    cache_key = f"{request.session_id}::{abs_path}"
+
+    with _preload_lock:
+        if cache_key in PRELOAD_CACHE:
+            return {"status": "already_cached", "cache_key": cache_key}
+
+    def _load():
+        try:
+            import pandas as pd
+
+            if abs_path.lower().endswith(".csv"):
+                df = pd.read_csv(abs_path)
+            else:
+                df = pd.read_excel(abs_path)
+
+            with _preload_lock:
+                if request.shared:
+                    SHARED_PRELOAD[abs_path] = df
+                    print(f"✅ Preloaded (shared) {abs_path} ({len(df)} rows)")
+                else:
+                    PRELOAD_CACHE[cache_key] = df
+                    print(f"✅ Preloaded {abs_path} ({len(df)} rows) for session {request.session_id}")
+        except Exception as e:
+            print(f"❌ Preload failed for {abs_path}: {e}")
+
+    threading.Thread(target=_load, daemon=True).start()
+    return {"status": "loading", "cache_key": cache_key}
 
 
 @app.post("/execute")
 async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
     """
     Execute Python code in the sandbox environment with persistent session state.
+
+    Each session gets its own plots/tables directories and isolated stdout capture.
 
     Args:
         request: Contains code to execute and session_id
@@ -95,21 +250,65 @@ async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
     session_id = request.session_id
     code = request.code
 
+    # Per-session artifact directories
+    session_plots_dir = get_session_plots_dir(session_id)
+    session_tables_dir = get_session_tables_dir(session_id)
+
     # Get or create session context
     if session_id not in SESSION_CONTEXTS:
         SESSION_CONTEXTS[session_id] = {
-            # Inject plots_dir as a pre-defined variable so agent can use it directly
-            "plots_dir": str(PLOTS_DIR),
+            # Inject session-scoped plots_dir so agent code can use it directly
+            "plots_dir": str(session_plots_dir),
+            "__file_path": "",  # Will be set by preload hints
         }
         print(f"📝 Created new session: {session_id}")
 
-    execution_context = SESSION_CONTEXTS[session_id]
+    # Track activity for cleanup worker
+    SESSION_LAST_ACTIVE[session_id] = time.time()
 
-    # Ensure plots directory exists
-    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+    execution_context = SESSION_CONTEXTS[session_id]
+    # Always ensure plots_dir is up-to-date for this session
+    execution_context["plots_dir"] = str(session_plots_dir)
+
+    # Inject preloaded DataFrame if available — check shared cache first,
+    # then per-session cache.  The shared cache is used for the default file
+    # so all users share the same in-memory copy.
+    file_path_hint = execution_context.get("__file_path", "")
+
+    def _try_inject_preloaded() -> bool:
+        """Try to find and inject preloaded df. Returns True if found."""
+        if file_path_hint and file_path_hint in SHARED_PRELOAD:
+            execution_context["__preloaded_df"] = SHARED_PRELOAD[file_path_hint]
+            return True
+        for ck, cdf in list(PRELOAD_CACHE.items()):
+            if ck.startswith(f"{session_id}::"):
+                execution_context["__preloaded_df"] = cdf
+                execution_context["__file_path"] = ck.split("::", 1)[1]
+                return True
+        # Fallback: try absolute path in shared cache
+        if file_path_hint:
+            abs_file = str(Path(file_path_hint).absolute())
+            if abs_file in SHARED_PRELOAD:
+                execution_context["__preloaded_df"] = SHARED_PRELOAD[abs_file]
+                return True
+        return False
+
+    if not _try_inject_preloaded() and file_path_hint:
+        # A preload might be in-flight — wait up to 10s for it to finish
+        # Use asyncio.sleep to avoid blocking the event loop
+        for _ in range(20):  # 20 × 0.5s = 10s max
+            await asyncio.sleep(0.5)
+            if _try_inject_preloaded():
+                print(f"✅ Preload arrived while waiting — injected __preloaded_df")
+                break
+        else:
+            print(f"⏳ Preload not ready after 10s — agent code will load the file itself")
+
+    # Ensure session plots directory exists
+    session_plots_dir.mkdir(parents=True, exist_ok=True)
 
     # Snapshot existing plot files BEFORE execution so we can detect new ones
-    existing_plots = set(PLOTS_DIR.glob("*.*"))
+    existing_plots = set(session_plots_dir.glob("*.*"))
 
     # Force matplotlib to use non-GUI backend
     try:
@@ -123,11 +322,6 @@ async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
     warnings.filterwarnings("ignore", message=".*FigureCanvasAgg.*non-interactive.*")
     warnings.filterwarnings("ignore", message=".*Matplotlib.*non-GUI.*")
 
-    # Capture stdout
-    old_stdout = sys.stdout
-    redirected_output = StringIO()
-    sys.stdout = redirected_output
-
     plots_saved = []
     tables_found = []
 
@@ -137,13 +331,35 @@ async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
         if "__builtins__" not in execution_context:
             execution_context["__builtins__"] = __builtins__
 
-        # Wrap exec in asyncio.to_thread to avoid blocking the event loop
-        await asyncio.to_thread(
-            exec, code, execution_context
-        )
+        # Thread-safe stdout capture: use a per-execution StringIO buffer
+        # instead of redirecting the global sys.stdout
+        output_buffer = io.StringIO()
+
+        def _exec_with_capture():
+            """Run exec() with captured stdout, isolated from other sessions."""
+            import contextlib
+            with contextlib.redirect_stdout(output_buffer):
+                exec(code, execution_context)
+
+        # Wrap exec in asyncio.to_thread with a server-side timeout to prevent
+        # zombie executions that consume CPU/memory after the client gives up.
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(_exec_with_capture),
+                timeout=120.0,
+            )
+        except asyncio.TimeoutError:
+            output = output_buffer.getvalue()
+            return {
+                "success": False,
+                "output": output,
+                "error": "Code execution timed out after 120 seconds. For large datasets, use vectorized pandas operations instead of .apply() or row-by-row loops.",
+                "plots": plots_saved,
+                "tables": tables_found,
+            }
 
         # Get captured output
-        output = redirected_output.getvalue()
+        output = output_buffer.getvalue()
 
         # Auto-save any open matplotlib figures that the agent didn't save explicitly
         try:
@@ -157,7 +373,7 @@ async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
                     fig_label = fig.get_label() or f"figure_{fig_num}"
                     # Sanitize the label for use as filename
                     safe_label = "".join(c if c.isalnum() or c in "._-" else "_" for c in fig_label)
-                    plot_path = PLOTS_DIR / f"{safe_label}.png"
+                    plot_path = session_plots_dir / f"{safe_label}.png"
                     # Only auto-save if NOT already saved to PLOTS_DIR by the agent's code
                     if not plot_path.exists():
                         fig.savefig(str(plot_path), dpi=150, bbox_inches="tight")
@@ -170,18 +386,18 @@ async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
             print(f"Warning: Could not auto-save matplotlib figures: {e}")
 
         # Detect ALL new plot files created during execution (both agent-saved and auto-saved)
-        current_plots = set(PLOTS_DIR.glob("*.*"))
+        current_plots = set(session_plots_dir.glob("*.*"))
         new_plots = current_plots - existing_plots
         plots_saved = [str(p) for p in sorted(new_plots)]
 
         if plots_saved:
             print(f"🖼️  Detected {len(plots_saved)} new plot(s): {[Path(p).name for p in plots_saved]}")
 
-        # Auto-detect and format pandas DataFrames, save to TABLES_DIR
+        # Auto-detect and format pandas DataFrames, save to session tables dir
         try:
             import pandas as pd
 
-            TABLES_DIR.mkdir(parents=True, exist_ok=True)
+            session_tables_dir.mkdir(parents=True, exist_ok=True)
 
             for var_name, var_value in execution_context.items():
                 if isinstance(var_value, pd.DataFrame) and not var_name.startswith("_"):
@@ -196,8 +412,8 @@ async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
                         )
 
                         # Save table to disk as CSV and Markdown
-                        csv_path = TABLES_DIR / f"{var_name}.csv"
-                        md_path = TABLES_DIR / f"{var_name}.md"
+                        csv_path = session_tables_dir / f"{var_name}.csv"
+                        md_path = session_tables_dir / f"{var_name}.md"
                         var_value.to_csv(str(csv_path), index=True)
                         with open(str(md_path), "w", encoding="utf-8") as f:
                             f.write(f"# {var_name}\n\n")
@@ -209,11 +425,8 @@ async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
         except Exception as e:
             print(f"Warning: Could not format DataFrames: {e}")
 
-        # Get final output
-        output = redirected_output.getvalue()
-
-        # Restore stdout
-        sys.stdout = old_stdout
+        # Get final output (may have been extended by auto-save messages)
+        output = output_buffer.getvalue()
 
         return {
             "success": True,
@@ -224,9 +437,8 @@ async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        sys.stdout = old_stdout
         error_msg = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-        output = redirected_output.getvalue()
+        output = output_buffer.getvalue()
 
         return {
             "success": False,
@@ -287,13 +499,21 @@ async def install_package(request: InstallRequest) -> Dict[str, Any]:
 
 @app.post("/reset")
 async def reset_session(request: ResetRequest):
-    """Reset the execution context for a session."""
+    """Reset the execution context for a session and clean up its preload cache."""
     session_id = request.session_id
 
+    # Clean up preload cache entries for this session
+    with _preload_lock:
+        keys_to_remove = [k for k in PRELOAD_CACHE if k.startswith(f"{session_id}::")]
+        for k in keys_to_remove:
+            del PRELOAD_CACHE[k]
+            print(f"🗑️  Evicted preload cache: {k}")
+
     if session_id in SESSION_CONTEXTS:
+        session_plots_dir = get_session_plots_dir(session_id)
         # Re-initialize with pre-defined variables
         SESSION_CONTEXTS[session_id] = {
-            "plots_dir": str(PLOTS_DIR),
+            "plots_dir": str(session_plots_dir),
         }
         print(f"🔄 Reset session: {session_id}")
         return {"success": True, "message": f"Session {session_id} reset successfully"}
@@ -310,6 +530,7 @@ async def list_sessions():
     return {
         "sessions": list(SESSION_CONTEXTS.keys()),
         "count": len(SESSION_CONTEXTS),
+        "preloaded_files": len(PRELOAD_CACHE),
     }
 
 
@@ -321,14 +542,13 @@ if __name__ == "__main__":
     print("=" * 70)
     print()
     print(f"Sandbox directory: {SANDBOX_DIR}")
-    print(f"Plots directory: {PLOTS_DIR}")
-    print(f"Tables directory: {TABLES_DIR}")
     print()
     print("Server will run on: http://localhost:8765")
     print()
     print("Endpoints:")
     print("  POST /execute  - Execute Python code")
     print("  POST /install  - Install Python package")
+    print("  POST /preload  - Preload file into cache")
     print("  POST /reset    - Reset session context")
     print("  GET  /health   - Health check")
     print("  GET  /sessions - List active sessions")

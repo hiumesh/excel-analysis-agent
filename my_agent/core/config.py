@@ -34,3 +34,7 @@ class AgentConfig:
     # Sandbox server
     SANDBOX_SERVER_URL: str = os.getenv("SANDBOX_SERVER_URL", "http://localhost:8765")
     SANDBOX_TIMEOUT: float = float(os.getenv("SANDBOX_TIMEOUT", "120.0"))
+
+    # Data inspector — large file handling
+    DATA_INSPECTOR_SAMPLE_ROWS: int = int(os.getenv("DATA_INSPECTOR_SAMPLE_ROWS", "5000"))
+    LARGE_FILE_THRESHOLD_MB: float = float(os.getenv("LARGE_FILE_THRESHOLD_MB", "10.0"))

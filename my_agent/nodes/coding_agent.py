@@ -5,8 +5,9 @@ from typing import Any, Dict, List, Optional
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from my_agent.core.config import AgentConfig, ModelConfig
+from my_agent.core.execution_var import get_current_session_id
 from my_agent.core.llm import get_llm
-from my_agent.helpers.sandbox import PLOTS_DIR
+from my_agent.helpers.sandbox import get_session_plots_dir
 from my_agent.models.state import CodingSubgraphState
 from my_agent.prompts.prompts import CODING_AGENT_SYS_PROMPT, CODING_AGENT_USER_PROMPT
 from my_agent.tools.tools import bash_tool, python_repl_tool, think_tool
@@ -57,6 +58,10 @@ async def coding_agent_node(state: CodingSubgraphState) -> Dict[str, Any]:
         **bind_kwargs,
     )
 
+    # Session-scoped plots directory
+    session_id = get_current_session_id()
+    session_plots_dir = get_session_plots_dir(session_id)
+
     # Prepare the messages
     system_prompt = SystemMessage(content=CODING_AGENT_SYS_PROMPT)
 
@@ -69,17 +74,37 @@ async def coding_agent_node(state: CodingSubgraphState) -> Dict[str, Any]:
         # Extract data context description from structured dict
         data_context_dict = state.get("data_context")
         data_context_str = ""
+        total_rows = 0
         if isinstance(data_context_dict, dict):
             data_context_str = data_context_dict.get("description", "")
+            total_rows = data_context_dict.get("total_rows", data_context_dict.get("summary", {}).get("num_rows", 0))
         elif isinstance(data_context_dict, str):
             data_context_str = data_context_dict
+
+        # Generate large file hints
+        large_file_hints = "No special handling needed — dataset is small enough for in-memory operations."
+        if total_rows > 10000:
+            large_file_hints = (
+                f"🚨 CRITICAL — LARGE DATASET ({total_rows:,} rows). You MUST follow these rules:\n"
+                f"- NEVER use .apply(), .iterrows(), .itertuples(), or any row-by-row loop\n"
+                f"- For date parsing: use pd.to_datetime(df['col'], format='...', errors='coerce') — NOT .apply(parse_func)\n"
+                f"- For string operations: use df['col'].str.method() — NOT .apply(lambda)\n"
+                f"- For aggregations: use .groupby().agg() — NOT manual iteration\n"
+                f"- For conditional logic: use np.where() or pd.cut() — NOT .apply(if/else)\n"
+                f"- For plotting: aggregate/sample FIRST, then plot the small result\n"
+                f"- Avoid .to_markdown() or print() on the full DataFrame\n"
+                f"- Code WILL TIME OUT at 120s if you use non-vectorized operations on this many rows"
+            )
 
         analysis_prompt = HumanMessage(
             content=CODING_AGENT_USER_PROMPT.format(
                 analysis_plan=state.get("analysis_plan", ""),
                 data_context=data_context_str,
                 excel_file_path=state.get("excel_file_path", ""),
-                plots_dir=str(PLOTS_DIR),
+                plots_dir=str(session_plots_dir),
+                plots_url=f"/plots/{session_id}",
+                total_rows=total_rows,
+                large_file_hints=large_file_hints,
             )
         )
         messages = [system_prompt, user_query_msg, analysis_prompt]

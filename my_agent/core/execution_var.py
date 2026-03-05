@@ -1,3 +1,4 @@
+import contextvars
 import os
 
 from dotenv import load_dotenv
@@ -13,3 +14,21 @@ class Secrets:
 
 class Environment:
     ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
+
+
+# ---------------------------------------------------------------------------
+# Per-request session ID (thread-safe via contextvars)
+# ---------------------------------------------------------------------------
+_current_session_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "_current_session_id", default="default"
+)
+
+
+def set_current_session_id(session_id: str) -> None:
+    """Set the session/thread ID for the current async context."""
+    _current_session_id.set(session_id)
+
+
+def get_current_session_id() -> str:
+    """Get the session/thread ID for the current async context."""
+    return _current_session_id.get()

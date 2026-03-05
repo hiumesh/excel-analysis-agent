@@ -14,8 +14,30 @@ from pathlib import Path
 # Path to the shared sandbox venv
 SANDBOX_DIR = Path(__file__).parent.parent.parent / ".sandbox"
 VENV_DIR = SANDBOX_DIR / "venv"
+# Legacy global directories (kept for backward compat — prefer session-scoped dirs)
 PLOTS_DIR = SANDBOX_DIR / "plots"
 TABLES_DIR = SANDBOX_DIR / "tables"
+# Per-session root
+SESSIONS_DIR = SANDBOX_DIR / "sessions"
+
+
+def get_session_dir(session_id: str) -> Path:
+    """Return the root directory for a given session."""
+    return SESSIONS_DIR / session_id
+
+
+def get_session_plots_dir(session_id: str) -> Path:
+    """Return the plots directory for a given session, creating it if needed."""
+    d = get_session_dir(session_id) / "plots"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def get_session_tables_dir(session_id: str) -> Path:
+    """Return the tables directory for a given session, creating it if needed."""
+    d = get_session_dir(session_id) / "tables"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def get_python_executable() -> str:

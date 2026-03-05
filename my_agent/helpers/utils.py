@@ -1,7 +1,76 @@
 import asyncio
-from typing import Any, Dict
+import os
+from typing import Any, Dict, Tuple
 
 import pandas as pd
+
+from my_agent.core.config import AgentConfig
+
+
+async def convert_xlsx_to_csv(file_path: str) -> str:
+    """Convert an .xlsx file to .csv for faster subsequent reads.
+
+    Writes the CSV alongside the original file (same directory, .csv extension).
+    Returns the path to the CSV file. If the CSV already exists and is newer
+    than the source, it is reused without re-converting.
+    """
+    csv_path = os.path.splitext(file_path)[0] + ".csv"
+
+    # Skip conversion if the CSV already exists and is up-to-date
+    if os.path.exists(csv_path):
+        xlsx_mtime = os.path.getmtime(file_path)
+        csv_mtime = os.path.getmtime(csv_path)
+        if csv_mtime >= xlsx_mtime:
+            return csv_path
+
+    def _convert():
+        df = pd.read_excel(file_path)
+        df.to_csv(csv_path, index=False)
+        return csv_path
+
+    return await asyncio.to_thread(_convert)
+
+
+async def load_excel_file_sampled(
+    file_path: str,
+    sample_rows: int = AgentConfig.DATA_INSPECTOR_SAMPLE_ROWS,
+) -> Tuple[pd.DataFrame, int]:
+    """Load a sample of the file for quick data inspection.
+
+    For large .xlsx files, converts to CSV first for speed.
+    Returns (sampled_df, total_row_count).
+    """
+    # Check file size
+    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+    is_large = file_size_mb >= AgentConfig.LARGE_FILE_THRESHOLD_MB
+
+    # Convert large .xlsx → .csv for faster I/O
+    effective_path = file_path
+    if is_large and file_path.lower().endswith((".xlsx", ".xls")):
+        effective_path = await convert_xlsx_to_csv(file_path)
+
+    if effective_path.lower().endswith(".csv"):
+        # Count total rows efficiently (only scan newlines)
+        def _count_rows():
+            with open(effective_path, "r", encoding="utf-8", errors="ignore") as f:
+                return sum(1 for _ in f) - 1  # subtract header
+
+        total = await asyncio.to_thread(_count_rows)
+
+        # Read only the sample
+        try:
+            df = await asyncio.to_thread(pd.read_csv, effective_path, nrows=sample_rows)
+        except UnicodeDecodeError:
+            df = await asyncio.to_thread(
+                pd.read_csv, effective_path, nrows=sample_rows, encoding="unicode_escape"
+            )
+    else:
+        # Small .xlsx — read fully (openpyxl has no native nrows)
+        df_full = await asyncio.to_thread(pd.read_excel, file_path)
+        total = len(df_full)
+        df = df_full.head(sample_rows)
+
+    return df, total
 
 
 async def load_excel_file(file_path: str) -> pd.DataFrame:

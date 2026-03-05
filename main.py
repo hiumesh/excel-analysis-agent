@@ -9,14 +9,15 @@ from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from my_agent.agent import create_excel_analysis_graph
-from my_agent.helpers.sandbox import PLOTS_DIR, TABLES_DIR
+from my_agent.core.execution_var import set_current_session_id
+from my_agent.helpers.sandbox import SESSIONS_DIR
 
 # Module-level graph reference (set during app lifespan)
 graph = None
@@ -49,23 +50,23 @@ UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Default static datasource — used when no file_path is provided in the request
-DEFAULT_SOURCE_FILE = str(Path("data/source.xlsx").absolute())
+DEFAULT_SOURCE_FILE = str(Path("data/source.csv").absolute())
 
-# Ensure sandbox directories exist so mounting doesn't fail
-PLOTS_DIR.mkdir(parents=True, exist_ok=True)
-TABLES_DIR.mkdir(parents=True, exist_ok=True)
+# Ensure sessions root exists
+SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Mount sandbox output directories for static file serving
-app.mount("/plots", StaticFiles(directory=str(PLOTS_DIR)), name="plots")
-app.mount("/tables", StaticFiles(directory=str(TABLES_DIR)), name="tables")
 
 class AnalyzeRequest(BaseModel):
     query: str
     file_path: Optional[str] = None
     thread_id: Optional[str] = None
 
-def clean_artifacts(artifacts):
-    """Clean up the format of artifacts to make image paths absolute URLs relative to the server"""
+
+def clean_artifacts(artifacts, thread_id: str = "default"):
+    """Clean up the format of artifacts to make image paths absolute URLs relative to the server.
+    
+    Plot URLs are now session-scoped: /plots/{thread_id}/{filename}
+    """
     if not isinstance(artifacts, list):
         return []
     processed = []
@@ -76,9 +77,32 @@ def clean_artifacts(artifacts):
             artifact["title"] = artifact["description"]
         if artifact.get("type") == "plot" and isinstance(content, str):
             filename = Path(content).name
-            artifact["url"] = f"/plots/{filename}"
+            artifact["url"] = f"/plots/{thread_id}/{filename}"
         processed.append(artifact)
     return processed
+
+
+# ---------------------------------------------------------------------------
+# Dynamic per-session plot/table file serving
+# ---------------------------------------------------------------------------
+
+@app.get("/plots/{session_id}/{filename}")
+async def serve_plot(session_id: str, filename: str):
+    """Serve a plot file from a session-scoped directory."""
+    plot_path = SESSIONS_DIR / session_id / "plots" / filename
+    if not plot_path.exists():
+        raise HTTPException(status_code=404, detail="Plot not found")
+    return FileResponse(str(plot_path))
+
+
+@app.get("/tables/{session_id}/{filename}")
+async def serve_table(session_id: str, filename: str):
+    """Serve a table file from a session-scoped directory."""
+    table_path = SESSIONS_DIR / session_id / "tables" / filename
+    if not table_path.exists():
+        raise HTTPException(status_code=404, detail="Table not found")
+    return FileResponse(str(table_path))
+
 
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -108,6 +132,11 @@ async def upload_file(file: UploadFile = File(...)):
 async def analyze_excel(request: AnalyzeRequest):
     """One-time response route for complete analysis execution"""
     try:
+        thread_id = request.thread_id or str(uuid.uuid4())
+
+        # Set session ID context so tools use the correct sandbox session
+        set_current_session_id(thread_id)
+
         # Only pass the new message — checkpointer handles history via thread_id
         input_state = {
             "messages": [HumanMessage(content=request.query)],
@@ -115,7 +144,6 @@ async def analyze_excel(request: AnalyzeRequest):
         }
             
         # Invoke the graph
-        thread_id = request.thread_id or str(uuid.uuid4())
         config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
         print("Executing graph with thread_id:", thread_id)
         result = await graph.ainvoke(input_state, config)
@@ -132,7 +160,7 @@ async def analyze_excel(request: AnalyzeRequest):
         return {
             "success": True,
             "final_analysis": final_analysis,
-            "artifacts": clean_artifacts(artifacts),
+            "artifacts": clean_artifacts(artifacts, thread_id=thread_id),
             "route_decision": result.get("route_decision", {})
         }
         
@@ -142,7 +170,7 @@ async def analyze_excel(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def serialize_state_update(node: str, state_update: dict, is_subgraph: bool = False):
+def serialize_state_update(node: str, state_update: dict, is_subgraph: bool = False, thread_id: str = "default"):
     """Helper to sanitize and serialize state updates for streaming"""
     safe_update = {}
     for key, val in state_update.items():
@@ -164,7 +192,7 @@ def serialize_state_update(node: str, state_update: dict, is_subgraph: bool = Fa
                     safe_msgs.append(safe_msg)
             safe_update[key] = safe_msgs
         elif key == "artifacts":
-            safe_update[key] = clean_artifacts(val)
+            safe_update[key] = clean_artifacts(val, thread_id=thread_id)
         else:
             safe_update[key] = val
             
@@ -181,13 +209,17 @@ async def analyze_excel_stream(request: AnalyzeRequest):
     try:
         async def event_generator():
             try:
+                thread_id = request.thread_id or str(uuid.uuid4())
+
+                # Set session ID context so tools use the correct sandbox session
+                set_current_session_id(thread_id)
+
                 # Only pass the new message — checkpointer handles history via thread_id
                 input_state = {
                     "messages": [HumanMessage(content=request.query)],
                     "excel_file_path": request.file_path or DEFAULT_SOURCE_FILE,
                 }
                     
-                thread_id = request.thread_id or str(uuid.uuid4())
                 config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
                 
                 # Emit thread_id as the first event so the frontend can track it
@@ -197,7 +229,7 @@ async def analyze_excel_stream(request: AnalyzeRequest):
                 async for namespace, chunk in graph.astream(input_state, config, stream_mode="updates", subgraphs=True):
                     is_subgraph = len(namespace) > 0
                     for node_name, state_update in chunk.items():
-                        serialized = serialize_state_update(node_name, state_update, is_subgraph=is_subgraph)
+                        serialized = serialize_state_update(node_name, state_update, is_subgraph=is_subgraph, thread_id=thread_id)
                         yield f"data: {serialized}\n\n"
                         await asyncio.sleep(0.01)
                 

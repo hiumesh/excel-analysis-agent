@@ -9,11 +9,12 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from langchain_core.messages import AIMessage
 
-from my_agent.helpers.sandbox_client import check_server_health
+from my_agent.helpers.sandbox_client import check_server_health, preload_file_via_server
+from my_agent.core.execution_var import get_current_session_id
 from my_agent.helpers.utils import (
     analyze_dataframe,
     generate_data_description,
-    load_excel_file,
+    load_excel_file_sampled,
 )
 from my_agent.models.state import ExcelAnalysisState
 from my_agent.tools.tools import reset_execution_context
@@ -218,8 +219,8 @@ async def data_inspector_node(state: ExcelAnalysisState) -> Dict[str, Any]:
 
         logger.info("📎 Analysing file: %s", excel_path)
 
-        # 4. Load, analyse, describe -------------------------------------------
-        df = await load_excel_file(excel_path)
+        # 4. Load SAMPLED data, analyse, describe --------------------------------
+        df, total_rows = await load_excel_file_sampled(excel_path)
         analysis = await analyze_dataframe(df)
         data_description = await generate_data_description(analysis)
         file_name = Path(excel_path).name
@@ -227,14 +228,23 @@ async def data_inspector_node(state: ExcelAnalysisState) -> Dict[str, Any]:
         # 5. Semantic profiling ------------------------------------------------
         profile = _build_semantic_profile(df, analysis)
 
-        # 6. Assemble data context ---------------------------------------------
+        # 6. Fire background preload so sandbox has full data ready ------------
+        session_id = get_current_session_id()
+        try:
+            await preload_file_via_server(excel_path, session_id=session_id)
+        except Exception:
+            logger.warning("Preload request failed — coding agent will load file normally")
+
+        # 7. Assemble data context ---------------------------------------------
         data_context: Dict[str, Any] = {
             "file_path": os.path.abspath(excel_path),
             "file_name": file_name,
             "analyzed_at": datetime.now().isoformat(),
             "description": data_description,
+            "total_rows": total_rows,
+            "sampled_rows": len(df),
             "summary": {
-                "num_rows": analysis["num_rows"],
+                "num_rows": total_rows,
                 "num_columns": analysis["num_columns"],
                 "column_names": analysis["column_names"],
                 "numeric_columns": analysis["numeric_columns"],
@@ -246,7 +256,8 @@ async def data_inspector_node(state: ExcelAnalysisState) -> Dict[str, Any]:
         inspector_message = AIMessage(
             content=(
                 f"Data inspection complete.\n"
-                f"Rows: {analysis['num_rows']}, Columns: {analysis['num_columns']}.\n"
+                f"Total Rows: {total_rows} (sampled {len(df)} for profiling), "
+                f"Columns: {analysis['num_columns']}.\n"
                 f"Structure Type: {profile['structure_type']}.\n"
                 f"Scenarios Detected: {profile['has_scenarios']}."
             ),
@@ -256,7 +267,7 @@ async def data_inspector_node(state: ExcelAnalysisState) -> Dict[str, Any]:
         logger.info(
             "=========== Data Inspector Result ===========\n"
             "  File: %s\n"
-            "  Rows: %s, Columns: %s\n"
+            "  Total Rows: %s (sampled: %s), Columns: %s\n"
             "  Numeric Columns: %s\n"
             "  Categorical Columns: %s\n"
             "  Structure Type: %s\n"
@@ -265,7 +276,8 @@ async def data_inspector_node(state: ExcelAnalysisState) -> Dict[str, Any]:
             "  Data Quality: %s\n"
             "=============================================",
             file_name,
-            analysis["num_rows"],
+            total_rows,
+            len(df),
             analysis["num_columns"],
             analysis["numeric_columns"],
             analysis["categorical_columns"],
