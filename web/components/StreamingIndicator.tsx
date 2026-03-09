@@ -22,17 +22,16 @@ interface StreamingIndicatorProps {
   className?: string;
 }
 
-// NOTE: Commented out — not needed while static "Analyzing" indicator is used
-// const nodeLabels: Record<string, { label: string; icon: string }> = {
-//   router: { label: "Routing query", icon: "🔀" },
-//   planner: { label: "Planning analysis", icon: "📋" },
-//   data_loader: { label: "Loading data", icon: "📁" },
-//   coding_agent: { label: "Writing analysis code", icon: "💻" },
-//   execute_tools: { label: "Executing tools", icon: "⚙️" },
-//   code_executor: { label: "Executing code", icon: "⚡" },
-//   synthesizer: { label: "Synthesizing results", icon: "✨" },
-//   finalizer: { label: "Finalizing response", icon: "📊" },
-// };
+const nodeLabels: Record<string, { label: string; icon: string }> = {
+  router: { label: "Understanding your question", icon: "🧠" },
+  planner: { label: "Preparing analysis plan", icon: "📋" },
+  data_loader: { label: "Reading your data", icon: "�" },
+  coding_agent: { label: "Crunching the numbers", icon: "�" },
+  execute_tools: { label: "Running analysis", icon: "⚙️" },
+  code_executor: { label: "Processing results", icon: "⚡" },
+  synthesizer: { label: "Summarizing findings", icon: "✍️" },
+  finalizer: { label: "Preparing your report", icon: "�" },
+};
 
 const DelayContext = createContext<{
   register: (id: string, count: number) => number;
@@ -143,22 +142,24 @@ function AnimatedListItem({
 // };
 
 export function StreamingIndicator({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   currentNode,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   reasoningSteps = [],
   className,
 }: StreamingIndicatorProps) {
-  // NOTE: Thinking steps and per-node graph step indicators are commented out.
-  // Showing a static "Analyzing" animation instead.
-  // To restore, uncomment the original render logic and ReasoningStepBox usage.
+  // NOTE: Reasoning steps remain commented out.
+  // Showing per-node progress labels instead of static "Analyzing" text.
+
+  const nodeInfo = currentNode ? nodeLabels[currentNode] : null;
+  const displayIcon = nodeInfo?.icon || "✨";
+  const displayLabel = nodeInfo?.label || "Analyzing";
 
   return (
-    <div className={cn("flex items-center gap-3 px-4 py-3 ml-10", className)}>
+    <div className={cn("flex items-center gap-3 px-4 py-3", className)}>
       <div className="flex items-center gap-2.5 text-muted-foreground/70">
-        <span className="text-sm">✨</span>
+        <span className="text-sm">{displayIcon}</span>
         <span className="text-[13px] font-medium tracking-tight">
-          Analyzing
+          {displayLabel}
         </span>
         <div className="flex items-center gap-1 ml-0.5">
           <span
