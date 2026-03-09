@@ -42,6 +42,7 @@ Desktop.ini
 
 # Uploads
 uploads/
+static/
 
 # Claude
 .claude/

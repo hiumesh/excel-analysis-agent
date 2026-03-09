@@ -247,6 +247,17 @@ async def analyze_excel_stream(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ---------------------------------------------------------------------------
+# Chatbot Widget — served as a static single-page app for iframe embedding
+# ---------------------------------------------------------------------------
+WIDGET_DIR = Path("static/widget")
+
+# StaticFiles with html=True automatically serves index.html for "/widget/"
+# and also serves the JS/CSS assets at "/widget/chatbot-widget.js" etc.
+if WIDGET_DIR.exists():
+    app.mount("/widget", StaticFiles(directory=str(WIDGET_DIR), html=True), name="widget-static")
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok"}
