@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import preserveDirectives from "rollup-plugin-preserve-directives";
 import { resolve } from "path";
 
 export default defineConfig(({ mode }) => {
@@ -24,6 +25,7 @@ export default defineConfig(({ mode }) => {
       outDir: resolve(__dirname, "../../static/widget"),
       emptyOutDir: true,
       rollupOptions: {
+        preserveEntrySignatures: "exports-only",
         input: resolve(__dirname, "index.html"),
         output: {
           // Single JS + CSS file output
@@ -36,6 +38,7 @@ export default defineConfig(({ mode }) => {
             return "assets/[name].[hash][extname]";
           },
         },
+        plugins: [preserveDirectives()],
       },
     },
   };
