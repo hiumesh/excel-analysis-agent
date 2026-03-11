@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ChatbotWidget } from "@/components/ChatbotWidget";
+import { ChatbotWidget } from "../components/ChatbotWidget";
 import "../app/globals.css";
 
 // Mount the chatbot widget into a shadow-free container
