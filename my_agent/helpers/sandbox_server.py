@@ -77,7 +77,24 @@ app = FastAPI(title="Sandbox Execution Server")
 
 def _sync_preload_default():
     """Eagerly load the default data source at startup (blocking, runs once)."""
-    default_source = str(Path("data/source.csv").absolute())
+    import json
+    config_path = Path("data/default_config.json")
+    default_source = None
+    
+    if config_path.exists():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            file_path = config.get("default_file_path")
+            if file_path and Path(file_path).exists():
+                default_source = str(Path(file_path).absolute())
+                print(f"📖 Loaded default file path from config: {default_source}")
+        except Exception as e:
+            print(f"⚠️  Error reading config file: {e}")
+            
+    if not default_source:
+        default_source = str(Path("data/source.csv").absolute())
+
     if not Path(default_source).exists():
         print(f"⚠️  Default source file not found: {default_source} — skipping preload")
         return

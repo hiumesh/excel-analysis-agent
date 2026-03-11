@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState, useRef, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ChatMessage } from "@/components/ChatMessage";
 // NOTE: File upload commented out — datasource is now static from backend
@@ -19,8 +20,8 @@ import {
   Send,
   /* Paperclip, */ X,
   Sparkles,
-  BarChart3,
   Plus,
+  Settings,
 } from "lucide-react";
 
 interface Message {
@@ -289,6 +290,16 @@ export function ChatPage() {
                 </span>
               </div>
             )} */}
+            <Link href="/upload" passHref>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 rounded-xl text-xs h-8 border-border/50 hover:bg-muted/50 mr-2"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Settings
+              </Button>
+            </Link>
             {!isEmpty && (
               <Button
                 variant="outline"
@@ -438,7 +449,7 @@ export function ChatPage() {
             </Button> */}
 
             {/* Text input */}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative flex">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -446,7 +457,7 @@ export function ChatPage() {
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about your data..."
                 rows={1}
-                className="w-full resize-none overflow-hidden rounded-xl border border-border/50 bg-muted/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-200"
+                className="block w-full resize-none overflow-hidden rounded-xl border border-border/50 bg-muted/30 px-4 py-[11px] text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-200 min-h-[44px]"
                 disabled={isStreaming}
               />
             </div>
@@ -456,7 +467,7 @@ export function ChatPage() {
               <Button
                 variant="destructive"
                 size="icon"
-                className="shrink-0 h-10 w-10 rounded-xl"
+                className="shrink-0 h-11 w-11 rounded-xl"
                 onClick={handleStop}
               >
                 <X className="h-5 w-5" />
@@ -464,7 +475,7 @@ export function ChatPage() {
             ) : (
               <Button
                 size="icon"
-                className="shrink-0 h-10 w-10 rounded-xl bg-primary hover:bg-primary/90 transition-colors"
+                className="shrink-0 h-11 w-11 rounded-xl bg-primary hover:bg-primary/90 transition-colors"
                 onClick={handleSend}
                 disabled={!input.trim()}
               >

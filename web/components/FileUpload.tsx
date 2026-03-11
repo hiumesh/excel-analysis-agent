@@ -18,6 +18,7 @@ interface FileUploadProps {
   uploadedFile: UploadResult | null;
   disabled?: boolean;
   className?: string;
+  uploadAction?: (file: File) => Promise<UploadResult>;
 }
 
 export function FileUpload({
@@ -26,20 +27,21 @@ export function FileUpload({
   uploadedFile,
   disabled = false,
   className,
+  uploadAction = uploadFile,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const ACCEPTED_TYPES = [
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-excel",
-    "text/csv",
-  ];
-  const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
+  const validateFile = useCallback((file: File): boolean => {
+    const ACCEPTED_TYPES = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+      "text/csv",
+    ];
+    const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
 
-  const validateFile = (file: File): boolean => {
     const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
     if (
       !ACCEPTED_EXTENSIONS.includes(ext) &&
@@ -53,7 +55,7 @@ export function FileUpload({
       return false;
     }
     return true;
-  };
+  }, []);
 
   const handleUpload = useCallback(
     async (file: File) => {
@@ -61,7 +63,7 @@ export function FileUpload({
       setError(null);
       setIsUploading(true);
       try {
-        const result = await uploadFile(file);
+        const result = await uploadAction(file);
         onFileUploaded(result);
       } catch (err) {
         setError((err as Error).message || "Upload failed");
@@ -69,7 +71,7 @@ export function FileUpload({
         setIsUploading(false);
       }
     },
-    [onFileUploaded],
+    [onFileUploaded, uploadAction, validateFile],
   );
 
   const handleDrop = useCallback(
