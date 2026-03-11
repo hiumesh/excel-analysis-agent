@@ -14,14 +14,14 @@ export interface StreamEvent {
     messages?: Array<{
       type: string;
       content: string;
-      tool_calls?: Array<{ name: string; args: any }>;
+      tool_calls?: Array<{ name: string; args: Record<string, unknown> }>;
     }>;
     artifacts?: Artifact[];
     final_analysis?: string;
-    route_decision?: { reasoning?: string; [key: string]: any };
-    supervisor_decision?: { reasoning?: string; [key: string]: any };
+    route_decision?: { reasoning?: string; [key: string]: unknown };
+    supervisor_decision?: { reasoning?: string; [key: string]: unknown };
     analysis_plan?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   thread_id?: string;
   status?: string;
@@ -40,6 +40,25 @@ export async function uploadFile(file: File): Promise<UploadResult> {
   formData.append("file", file);
 
   const response = await fetch(`${API_BASE}/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ detail: "Upload failed" }));
+    throw new Error(error.detail || "Upload failed");
+  }
+
+  return response.json();
+}
+
+export async function uploadDefaultFile(file: File): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/upload-default`, {
     method: "POST",
     body: formData,
   });

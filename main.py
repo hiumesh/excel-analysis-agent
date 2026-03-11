@@ -18,6 +18,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from my_agent.agent import create_excel_analysis_graph
 from my_agent.core.execution_var import set_current_session_id
 from my_agent.helpers.sandbox import SESSIONS_DIR
+from my_agent.helpers.sandbox_client import preload_file_via_server
 
 # Module-level graph reference (set during app lifespan)
 graph = None
@@ -49,8 +50,24 @@ app.add_middleware(
 UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-# Default static datasource — used when no file_path is provided in the request
-DEFAULT_SOURCE_FILE = str(Path("data/source.csv").absolute())
+CONFIG_PATH = Path("data/default_config.json")
+
+def get_default_source_file() -> str:
+    """Read the current default source file path from config, or use fallback."""
+    if CONFIG_PATH.exists():
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            file_path = config.get("default_file_path")
+            if file_path and Path(file_path).exists():
+                return str(Path(file_path).absolute())
+        except Exception as e:
+            print(f"Error reading config: {e}")
+    # Fallback default
+    return str(Path("data/source.csv").absolute())
+
+# Default static datasource
+DEFAULT_SOURCE_FILE = get_default_source_file()
 
 # Ensure sessions root exists
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -121,6 +138,64 @@ async def upload_file(file: UploadFile = File(...)):
         return {
             "success": True,
             "file_path": str(file_path.absolute()),
+            "filename": file.filename
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/upload-default")
+async def upload_default_file(file: UploadFile = File(...)):
+    """Upload a new file and set it as the global default data source"""
+    global DEFAULT_SOURCE_FILE
+    try:
+        if not file or not file.filename:
+            raise HTTPException(status_code=400, detail="No file uploaded")
+            
+        file_ext = Path(file.filename).suffix.lower()
+        unique_id = uuid.uuid4().hex[:8]
+        
+        # Save the raw uploaded file first
+        raw_filename = f"default_source_{unique_id}_raw{file_ext}"
+        raw_file_path = UPLOAD_DIR / raw_filename
+        
+        with open(raw_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        final_path = raw_file_path
+        
+        # If it's an Excel file, convert it to CSV
+        if file_ext in [".xls", ".xlsx"]:
+            import pandas as pd
+            csv_filename = f"default_source_{unique_id}.csv"
+            csv_file_path = UPLOAD_DIR / csv_filename
+            
+            # Read excel and write to CSV
+            df = pd.read_excel(raw_file_path)
+            df.to_csv(csv_file_path, index=False)
+            
+            # Set the final path to the converted CSV
+            final_path = csv_file_path
+            
+            # Optionally remove the raw excel file to save space (commented out for now just in case)
+            # raw_file_path.unlink(missing_ok=True)
+            
+        absolute_path = str(final_path.absolute())
+        
+        # Write to config to persist across restarts
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump({"default_file_path": absolute_path}, f)
+            
+        # Update global memory
+        DEFAULT_SOURCE_FILE = absolute_path
+        
+        # Async fire-and-forget signal to sandbox server to preload the new global default
+        await preload_file_via_server(file_path=absolute_path, shared=True)
+            
+        return {
+            "success": True,
+            "file_path": absolute_path,
             "filename": file.filename
         }
     except Exception as e:

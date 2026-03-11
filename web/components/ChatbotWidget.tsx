@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ArtifactsPanel } from "@/components/ArtifactsPanel";
 import { StreamingIndicator } from "@/components/StreamingIndicator";
-import { streamAnalysis, type Artifact, type StreamEvent } from "@/lib/api";
-import { MessageCircle, Send, X, Sparkles, Plus, Minus } from "lucide-react";
+import { FileUpload } from "@/components/FileUpload";
+import { streamAnalysis, uploadDefaultFile, type UploadResult, type Artifact, type StreamEvent } from "@/lib/api";
+import { MessageCircle, Send, X, Sparkles, Plus, Minus, Settings, CheckCircle2 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -26,6 +27,8 @@ interface Message {
 export function ChatbotWidget() {
   /* ---- modal open / close ---- */
   const [isOpen, setIsOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<UploadResult | null>(null);
 
   /* ---- chat state (mirrors ChatPage) ---- */
   const [messages, setMessages] = useState<Message[]>([]);
@@ -258,6 +261,16 @@ export function ChatbotWidget() {
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={() => setShowSettings(!showSettings)}
+                  disabled={isStreaming}
+                  className={`h-7 w-7 rounded-lg ${showSettings ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  title="Settings"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setIsOpen(false)}
                   className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
                 >
@@ -265,6 +278,40 @@ export function ChatbotWidget() {
                 </Button>
               </div>
             </div>
+
+            {/* ---- settings area ---- */}
+            {showSettings && (
+              <div className="border-b border-border/40 bg-muted/10 p-4 relative">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-xs font-medium text-foreground">Global Default Dataset</h3>
+                </div>
+                {uploadedFile ? (
+                   <div className="flex flex-col items-center justify-center p-4 bg-muted/20 rounded-lg border border-border/50 text-center animate-in fade-in duration-300">
+                     <CheckCircle2 className="h-6 w-6 text-emerald-500 mb-2" />
+                     <p className="text-[11px] text-muted-foreground mb-3">
+                       <strong className="text-foreground">{uploadedFile.filename}</strong> is now the default dataset.
+                     </p>
+                     <Button 
+                       variant="outline"
+                       size="sm"
+                       className="h-7 text-[10px]"
+                       onClick={() => setUploadedFile(null)}
+                     >
+                       Upload Another
+                     </Button>
+                   </div>
+                ) : (
+                  <FileUpload
+                    onFileUploaded={(result) => setUploadedFile(result)}
+                    onFileRemoved={() => setUploadedFile(null)}
+                    uploadedFile={uploadedFile}
+                    uploadAction={uploadDefaultFile}
+                    disabled={isStreaming}
+                    className="p-4"
+                  />
+                )}
+              </div>
+            )}
 
             {/* ---- chat area ---- */}
             <div className="chatbot-modal-body" ref={scrollRef}>
@@ -348,7 +395,7 @@ export function ChatbotWidget() {
             {/* ---- input area ---- */}
             <div className="chatbot-modal-footer">
               <div className="flex items-end gap-1.5">
-                <div className="flex-1 relative">
+                <div className="flex-1 relative flex">
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -356,7 +403,7 @@ export function ChatbotWidget() {
                     onKeyDown={handleKeyDown}
                     placeholder="Ask about your data..."
                     rows={1}
-                    className="w-full resize-none overflow-hidden rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-200"
+                    className="block w-full resize-none overflow-hidden rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-200 md:min-h-[38px]"
                     disabled={isStreaming}
                   />
                 </div>
@@ -365,7 +412,7 @@ export function ChatbotWidget() {
                   <Button
                     variant="destructive"
                     size="icon"
-                    className="shrink-0 h-9 w-9 rounded-lg"
+                    className="shrink-0 h-[38px] w-[38px] rounded-lg"
                     onClick={handleStop}
                   >
                     <X className="h-4 w-4" />
@@ -373,7 +420,7 @@ export function ChatbotWidget() {
                 ) : (
                   <Button
                     size="icon"
-                    className="shrink-0 h-9 w-9 rounded-lg bg-primary hover:bg-primary/90 transition-colors"
+                    className="shrink-0 h-[38px] w-[38px] rounded-lg bg-primary hover:bg-primary/90 transition-colors"
                     onClick={handleSend}
                     disabled={!input.trim()}
                   >
