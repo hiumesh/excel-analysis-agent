@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "dev:widget": "vite --config widget/vite.config.ts",
-    "build:widget": "vite build --config widget/vite.config.ts"
+    "dev:standalone": "vite --config standalone/vite.config.ts",
+    "build:standalone": "vite build --config standalone/vite.config.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

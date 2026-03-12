@@ -405,7 +405,19 @@ async def execute_code(request: ExecuteRequest) -> Dict[str, Any]:
         # Detect ALL new plot files created during execution (both agent-saved and auto-saved)
         current_plots = set(session_plots_dir.glob("*.*"))
         new_plots = current_plots - existing_plots
-        plots_saved = [str(p) for p in sorted(new_plots)]
+        
+        # Filter out empty or very small files (blank plots are usually < 5KB, real ones 20KB+)
+        plots_saved = []
+        for p in sorted(new_plots):
+            try:
+                if p.stat().st_size > 2048:  # 2KB threshold for blank plots
+                    plots_saved.append(str(p))
+                else:
+                    print(f"🗑️  Ignoring likely blank plot (too small: {p.stat().st_size} bytes): {p.name}")
+                    # Optionally delete the blank file
+                    p.unlink(missing_ok=True)
+            except Exception:
+                plots_saved.append(str(p))
 
         if plots_saved:
             print(f"🖼️  Detected {len(plots_saved)} new plot(s): {[Path(p).name for p in plots_saved]}")

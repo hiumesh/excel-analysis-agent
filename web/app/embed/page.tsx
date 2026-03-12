@@ -1,5 +1,5 @@
-import { ChatbotWidget } from "@/components/ChatbotWidget";
+import { EmbedPage } from "@/components/EmbedPage";
 
-export default function EmbedPage() {
-  return <ChatbotWidget />;
+export default function NextEmbedPage() {
+  return <EmbedPage />;
 }

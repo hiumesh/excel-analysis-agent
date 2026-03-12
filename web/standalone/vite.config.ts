@@ -4,36 +4,39 @@ import preserveDirectives from "rollup-plugin-preserve-directives";
 import { resolve } from "path";
 
 export default defineConfig(({ mode }) => {
-  // Load env files from the widget/ directory
   const env = loadEnv(mode, __dirname, "VITE_");
 
   return {
     plugins: [react()],
     root: __dirname,
-    base: "/widget/",
+    base: "./", // Use relative paths for assets within each bundle
     define: {
-      // Replace process.env.NEXT_PUBLIC_API_URL so the original api.ts works in the Vite build
       "process.env.NEXT_PUBLIC_API_URL": JSON.stringify(env.VITE_API_URL || ""),
     },
     resolve: {
       alias: {
         "@/components": resolve(__dirname, "../components"),
         "@/lib": resolve(__dirname, "../lib"),
+        "@/app": resolve(__dirname, "../app"),
       },
     },
     build: {
-      outDir: resolve(__dirname, "../../static/widget"),
+      outDir: resolve(__dirname, "../../static/dist"),
       emptyOutDir: true,
       rollupOptions: {
         preserveEntrySignatures: "exports-only",
-        input: resolve(__dirname, "index.html"),
+        input: {
+          widget: resolve(__dirname, "widget/index.html"),
+          embed: resolve(__dirname, "embed/index.html"),
+        },
         output: {
-          // Single JS + CSS file output
-          entryFileNames: "chatbot-widget.js",
-          chunkFileNames: "chatbot-widget.js",
+          // Output into subdirectories to match URLs
+          entryFileNames: "[name]/index.js",
+          chunkFileNames: "assets/[name]-[hash].js",
           assetFileNames: (assetInfo) => {
             if (assetInfo.name && assetInfo.name.endsWith(".css")) {
-              return "chatbot-widget.css";
+              // Extract the parent directory name to group CSS
+              return "[name]/index.css";
             }
             return "assets/[name].[hash][extname]";
           },

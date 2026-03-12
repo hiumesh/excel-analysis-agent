@@ -7,22 +7,39 @@ from langgraph.graph import MessagesState, add_messages
 
 def add_artifacts(left: List["Artifact"], right: List["Artifact"]) -> List["Artifact"]:
     """
-    Reducer function to accumulate artifacts.
+    Reducer function to accumulate artifacts without duplicates.
 
-    Appends new artifacts to the existing list instead of replacing.
+    Appends new artifacts to the existing list, ensuring each 'content'
+    is unique (e.g., same plot or table doesn't appear twice).
 
     Args:
         left: Existing artifacts
         right: New artifacts to add
 
     Returns:
-        Combined list of artifacts
+        Combined list of unique artifacts
     """
     if not left:
         return right
     if not right:
         return left
-    return left + right
+
+    # Keep the latest version of the artifact if the content matches
+    latest_versions = {}
+    for a in left + right:
+        if a.get("content"):
+            latest_versions[a.get("content")] = a
+
+    # Convert back to list, preserving the original order of appearance
+    result = []
+    seen = set()
+    for a in left + right:
+        content = a.get("content")
+        if content and content not in seen:
+            result.append(latest_versions[content])
+            seen.add(content)
+    
+    return result
 
 
 def update_analysis_steps(left: List["AnalysisStep"], right: List["AnalysisStep"]) -> List["AnalysisStep"]:

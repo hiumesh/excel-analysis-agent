@@ -1,7 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ChatbotWidget } from "../components/ChatbotWidget";
-import "../app/globals.css";
+import { ChatbotWidget } from "@/components/ChatbotWidget";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import "@/app/globals.css";
 
 // Mount the chatbot widget into a shadow-free container
 const CONTAINER_ID = "reportiq-chatbot-root";
@@ -18,7 +20,15 @@ function mount() {
   document.body.appendChild(container);
 
   const root = ReactDOM.createRoot(container);
-  root.render(React.createElement(ChatbotWidget));
+  root.render(
+    <React.StrictMode>
+      <ThemeProvider>
+        <TooltipProvider>
+          <ChatbotWidget />
+        </TooltipProvider>
+      </ThemeProvider>
+    </React.StrictMode>
+  );
 }
 
 // Auto-mount when DOM is ready
