@@ -325,12 +325,25 @@ async def analyze_excel_stream(request: AnalyzeRequest):
 # ---------------------------------------------------------------------------
 # Chatbot Widget — served as a static single-page app for iframe embedding
 # ---------------------------------------------------------------------------
-WIDGET_DIR = Path("static/widget")
+DIST_DIR = Path("static/dist")
 
-# StaticFiles with html=True automatically serves index.html for "/widget/"
-# and also serves the JS/CSS assets at "/widget/chatbot-widget.js" etc.
-if WIDGET_DIR.exists():
-    app.mount("/widget", StaticFiles(directory=str(WIDGET_DIR), html=True), name="widget-static")
+if DIST_DIR.exists():
+    # Serve the widget bundle (contains index.html for UI and JS/CSS)
+    # The vite config outputs to static/dist/widget and static/dist/embed
+    widget_path = DIST_DIR / "widget"
+    embed_path = DIST_DIR / "embed"
+    
+    assets_path = DIST_DIR / "assets"
+    globals_path = DIST_DIR / "globals"
+    
+    if widget_path.exists():
+        app.mount("/widget", StaticFiles(directory=str(widget_path), html=True), name="widget-static")
+    if embed_path.exists():
+        app.mount("/embed", StaticFiles(directory=str(embed_path), html=True), name="embed-static")
+    if assets_path.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets-static")
+    if globals_path.exists():
+        app.mount("/globals", StaticFiles(directory=str(globals_path)), name="globals-static")
 
 
 @app.get("/api/health")
