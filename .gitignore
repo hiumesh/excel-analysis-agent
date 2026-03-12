@@ -46,3 +46,5 @@ static/
 
 # Claude
 .claude/
+# Data
+data/
