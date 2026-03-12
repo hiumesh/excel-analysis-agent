@@ -1,5 +1,43 @@
+interface ReportIQConfig {
+  apiUrl?: string;
+}
+
+declare global {
+  interface Window {
+    REPORTIQ_CONFIG?: ReportIQConfig;
+  }
+}
+
 // Point directly to the backend to bypass Next.js proxy timeouts on long-running streams (SSE)
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api`;
+const getApiBase = () => {
+  const PROD_URL = "https://excel-analysis-agent.thepvhub.com";
+
+  // 1. Check for runtime override (useful for embedded widgets in SharePoint/etc)
+  if (typeof window !== "undefined" && window.REPORTIQ_CONFIG?.apiUrl) {
+    return `${window.REPORTIQ_CONFIG.apiUrl}/api`;
+  }
+
+  // 2. Build-time environment variable (Vite defines this)
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && envUrl !== "http://localhost:8000" && envUrl !== "http://localhost:3000") {
+    return `${envUrl}/api`;
+  }
+
+  // 3. Smart Origin Detection: If we are running on a server (not localhost), use the current origin
+  if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
+    // If we're on the production domain itself, use relative /api
+    if (window.location.origin === PROD_URL) {
+      return "/api";
+    }
+    // Otherwise fallback to the hardcoded prod URL
+    return `${PROD_URL}/api`;
+  }
+
+  // 4. Fallback for Local Development
+  return "http://localhost:8000/api";
+};
+
+const API_BASE = getApiBase();
 
 export interface UploadResult {
   success: boolean;
