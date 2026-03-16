@@ -22,12 +22,12 @@ function mount() {
   const root = ReactDOM.createRoot(container);
   root.render(
     <React.StrictMode>
-      <ThemeProvider>
-        <TooltipProvider>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <TooltipProvider delayDuration={300}>
           <ChatbotWidget />
         </TooltipProvider>
       </ThemeProvider>
-    </React.StrictMode>
+    </React.StrictMode>,
   );
 }
 
