@@ -10,7 +10,7 @@ declare global {
 
 // Point directly to the backend to bypass Next.js proxy timeouts on long-running streams (SSE)
 const getApiBase = () => {
-  const PROD_URL = "https://excel-analysis-agent.thepvhub.com";
+  const PROD_URL = "http://localhost:8000";
 
   // 1. Check for runtime override (useful for embedded widgets in SharePoint/etc)
   if (typeof window !== "undefined" && window.REPORTIQ_CONFIG?.apiUrl) {
@@ -19,12 +19,19 @@ const getApiBase = () => {
 
   // 2. Build-time environment variable (Vite defines this)
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (envUrl && envUrl !== "http://localhost:8000" && envUrl !== "http://localhost:3000") {
+  if (
+    envUrl &&
+    envUrl !== "http://localhost:8000" &&
+    envUrl !== "http://localhost:3000"
+  ) {
     return `${envUrl}/api`;
   }
 
   // 3. Smart Origin Detection: If we are running on a server (not localhost), use the current origin
-  if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
+  if (
+    typeof window !== "undefined" &&
+    !window.location.hostname.includes("localhost")
+  ) {
     // If we're on the production domain itself, use relative /api
     if (window.location.origin === PROD_URL) {
       return "/api";
@@ -129,6 +136,7 @@ export async function streamAnalysis(
         query,
         file_path: filePath,
         thread_id: threadId,
+        email: typeof window !== "undefined" ? (window as any).__USER_EMAIL__ : undefined,
       }),
       signal: controller.signal,
     });

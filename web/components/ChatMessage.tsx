@@ -182,6 +182,31 @@ export function ChatMessage({
                     </code>
                   );
                 },
+                img: ({ src, alt, ...props }) => {
+                  let imgUrl = src as string | undefined;
+                  // If running inside SPFx (__BACKEND_API_URL__ is set) and src is a relative string path
+                  if (
+                    typeof src === "string" &&
+                    src.startsWith("/") &&
+                    typeof window !== "undefined" &&
+                    (window as any).__BACKEND_API_URL__
+                  ) {
+                    // Remove trailing slash from backend URL if present, and ensure src starts with slash
+                    const baseUrl = (window as any).__BACKEND_API_URL__.replace(/\/$/, "");
+                    imgUrl = `${baseUrl}${src}`;
+                  }
+                  return (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={imgUrl}
+                      alt={alt || "Image"}
+                      className="max-w-full h-auto rounded-lg object-contain my-2 border border-border/40 bg-black/5 dark:bg-black/20"
+                      loading="lazy"
+                      style={{ maxHeight: "60vh" }}
+                      {...props}
+                    />
+                  );
+                },
               }}
             >
               {content || ""}

@@ -5,14 +5,19 @@ import { resolve } from "path";
 
 export default defineConfig(({ mode }) => {
   // Load env from the project root (../) instead of this standalone directory
-  const env = loadEnv(mode, resolve(__dirname, ".."), ["VITE_", "NEXT_PUBLIC_"]);
+  const env = loadEnv(mode, resolve(__dirname, ".."), [
+    "VITE_",
+    "NEXT_PUBLIC_",
+  ]);
 
   return {
     plugins: [react()],
     root: __dirname,
     base: "./", // Use relative paths for assets within each bundle
     define: {
-      "process.env.NEXT_PUBLIC_API_URL": JSON.stringify(env.NEXT_PUBLIC_API_URL || env.VITE_API_URL || "https://excel-analysis-agent.thepvhub.com"),
+      "process.env.NEXT_PUBLIC_API_URL": JSON.stringify(
+        env.NEXT_PUBLIC_API_URL || env.VITE_API_URL || "http://localhost:8000",
+      ),
     },
     resolve: {
       alias: {
