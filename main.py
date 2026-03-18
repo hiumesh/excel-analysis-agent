@@ -6,7 +6,8 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Security, Depends
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
@@ -46,6 +47,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+API_KEY_NAME = "X-API-Key"
+API_KEY = os.environ.get("UPLOAD_API_KEY", "secret-upload-key")
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=True)
+
+async def get_api_key(api_key: str = Security(api_key_header)):
+    if api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Could not validate API key")
+    return api_key
+
 # Ensure directory exists for uploaded Excel files
 UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -77,6 +87,7 @@ class AnalyzeRequest(BaseModel):
     query: str
     file_path: Optional[str] = None
     thread_id: Optional[str] = None
+    email: Optional[str] = None
 
 
 def clean_artifacts(artifacts, thread_id: str = "default"):
@@ -122,7 +133,7 @@ async def serve_table(session_id: str, filename: str):
 
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), api_key: str = Depends(get_api_key)):
     """Upload a file and return its path for analysis"""
     try:
         if not file or not file.filename:
@@ -146,7 +157,7 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/upload-default")
-async def upload_default_file(file: UploadFile = File(...)):
+async def upload_default_file(file: UploadFile = File(...), api_key: str = Depends(get_api_key)):
     """Upload a new file and set it as the global default data source"""
     global DEFAULT_SOURCE_FILE
     try:
@@ -297,6 +308,9 @@ async def analyze_excel_stream(request: AnalyzeRequest):
                     
                 config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
                 
+                if request.email:
+                    print(f"📧 Analysis requested by: {request.email}")
+
                 # Emit thread_id as the first event so the frontend can track it
                 yield f"data: {json.dumps({'thread_id': thread_id})}\n\n"
                 

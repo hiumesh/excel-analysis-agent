@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { ChatContainer, type ChatContainerHandle } from "@/components/ChatContainer";
+import {
+  ChatContainer,
+  type ChatContainerHandle,
+} from "@/components/ChatContainer";
 import { Button } from "@/components/ui/button";
 import { Plus, Sparkles } from "lucide-react";
 
 export function EmbedPage() {
-  const [chatStatus, setChatStatus] = useState({ isStreaming: false, isEmpty: true });
+  const [chatStatus, setChatStatus] = useState({
+    isStreaming: false,
+    isEmpty: true,
+  });
   const chatRef = useRef<ChatContainerHandle>(null);
 
   const handleNewChat = () => {
@@ -14,7 +20,7 @@ export function EmbedPage() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background">
+    <div className="h-full w-full min-h-[600px] flex flex-col bg-background border rounded-xl shadow-sm overflow-hidden">
       {/* Header for Embed View */}
       <div className="h-14 shrink-0 border-b border-border/40 bg-background/50 backdrop-blur-sm px-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -45,14 +51,12 @@ export function EmbedPage() {
         )}
       </div>
 
-      <main className="flex-1 overflow-hidden">
-        <ChatContainer 
-          ref={chatRef}
-          className="h-full w-full" 
-          showNewChat={false} 
-          onStatusChange={setChatStatus}
-        />
-      </main>
+      <ChatContainer
+        ref={chatRef}
+        className="flex-1 w-full"
+        showNewChat={false}
+        onStatusChange={setChatStatus}
+      />
     </div>
   );
 }

@@ -134,16 +134,31 @@ export function ArtifactsPanel({ artifacts, className }: ArtifactsPanelProps) {
             </div>
             <div className="bg-transparent mt-2">
               {activeArtifact.type === "plot" && activeArtifact.url ? (
-                <div className="rounded-xl overflow-hidden bg-black/5 dark:bg-black/20 p-2 border border-border/40 inline-block">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={activeArtifact.url}
-                    alt={activeArtifact.title || "Plot"}
-                    className="max-w-full h-auto rounded-lg object-contain"
-                    loading="lazy"
-                    style={{ maxHeight: "60vh" }}
-                  />
-                </div>
+                (() => {
+                  let imgUrl = activeArtifact.url;
+                  // If running inside SPFx (__BACKEND_API_URL__ is set) and src is relative
+                  if (
+                    imgUrl &&
+                    imgUrl.startsWith("/") &&
+                    typeof window !== "undefined" &&
+                    (window as any).__BACKEND_API_URL__
+                  ) {
+                    const baseUrl = (window as any).__BACKEND_API_URL__.replace(/\/$/, "");
+                    imgUrl = `${baseUrl}${imgUrl}`;
+                  }
+                  return (
+                    <div className="rounded-xl overflow-hidden bg-black/5 dark:bg-black/20 p-2 border border-border/40 inline-block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imgUrl}
+                        alt={activeArtifact.title || "Plot"}
+                        className="max-w-full h-auto rounded-lg object-contain"
+                        loading="lazy"
+                        style={{ maxHeight: "60vh" }}
+                      />
+                    </div>
+                  );
+                })()
               ) : (
                 <ScrollArea className="max-h-[600px] w-full rounded-xl bg-muted/10 border border-border/40 p-4">
                   <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-muted/30 prose-pre:border prose-pre:p-2 prose-pre:rounded-md prose-table:border-collapse prose-th:bg-muted/50 prose-th:px-4 prose-th:py-2 prose-td:border-t prose-td:px-4 prose-td:py-2">

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "pvadvisory-chatbot-client-side-solution",
+    "id": "4f67ba2a-4550-4059-8504-411e20d5f721",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.22.2"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "pvadvisory-chatbot description"
+      },
+      "longDescription": {
+        "default": "pvadvisory-chatbot description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "pvadvisory-chatbot Feature",
+        "description": "The feature that activates elements of the pvadvisory-chatbot solution.",
+        "id": "78087de3-7de1-45b7-9601-910367f04c9c",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/pvadvisory-chatbot.sppkg"
+  }
+}

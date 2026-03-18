@@ -1,0 +1,23 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "whichFolder": "subdir",
+    "solutionName": "pvadvisory-chatbot",
+    "environment": "spo",
+    "skipFeatureDeployment": true,
+    "useGulp": false,
+    "template": "react",
+    "componentName": "chatbot",
+    "componentDescription": "Report IQ Chatbot Web Part",
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "24.13.0",
+    "sdksVersions": {},
+    "version": "1.22.2",
+    "libraryName": "pvadvisory-chatbot",
+    "libraryId": "4f67ba2a-4550-4059-8504-411e20d5f721",
+    "packageManager": "npm",
+    "solutionShortDescription": "pvadvisory-chatbot description",
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}
