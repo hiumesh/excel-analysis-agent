@@ -272,9 +272,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  width: 420px;
+  width: 620px;
   max-width: calc(100vw - 2rem);
-  height: 620px;
+  height: 720px;
   max-height: calc(100vh - 7rem);
   border-radius: 1.25rem;
   border: 1px solid var(--border);

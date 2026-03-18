@@ -105,13 +105,7 @@ export default class Chatbot extends React.Component<IChatbotProps> {
 
   public render(): React.ReactElement<IChatbotProps> {
     return (
-      <div id={this.containerId} style={{ padding: "20px", border: "1px dashed #ccc", borderRadius: "8px", textAlign: "center", color: "#666" }}>
-        <strong>Chatbot Web Part</strong>
-        <p style={{ fontSize: "12px", marginTop: "8px" }}>
-          Widget Base URL: {this.props.widgetBaseUrl || "None"}<br/>
-          (The floating chatbot icon will appear in the bottom-right corner if the script loads successfully)
-        </p>
-      </div>
+      <div id={this.containerId} style={{ display: "none" }}></div>
     );
   }
 }
