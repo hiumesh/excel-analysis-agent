@@ -1,14 +1,14 @@
 import * as React from "react";
-import type { IChatbotProps } from "./IChatbotProps";
+import type { IChatbotWidgetProps } from "./IChatbotWidgetProps";
 
-export default class Chatbot extends React.Component<IChatbotProps> {
+export default class Chatbot extends React.Component<IChatbotWidgetProps> {
   private containerId = "chatbot-widget-container";
 
   public componentDidMount(): void {
     this._injectWidget().catch(console.error);
   }
 
-  public componentDidUpdate(prevProps: IChatbotProps): void {
+  public componentDidUpdate(prevProps: IChatbotWidgetProps): void {
     if (prevProps.widgetBaseUrl !== this.props.widgetBaseUrl) {
       // Re-inject if the URL changes
       this._injectWidget().catch(console.error);
@@ -83,7 +83,7 @@ export default class Chatbot extends React.Component<IChatbotProps> {
             newScript.type = script.getAttribute("type") || "text/javascript";
             newScript.async = true;
             newScript.crossOrigin = script.getAttribute("crossOrigin") || "";
-            
+
             newScript.onload = () => {
               if (typeof (window as any).mountChatbotWidget === "function") {
                 (window as any).mountChatbotWidget(this.containerId);
@@ -91,21 +91,21 @@ export default class Chatbot extends React.Component<IChatbotProps> {
             };
             document.body.appendChild(newScript);
           } else {
-             if (typeof (window as any).mountChatbotWidget === "function") {
-                (window as any).mountChatbotWidget(this.containerId);
-             }
+            if (typeof (window as any).mountChatbotWidget === "function") {
+              (window as any).mountChatbotWidget(this.containerId);
+            }
           }
         }
       });
-
     } catch (error) {
-      console.error("[ChatbotWebPart] Failed to inject widget assets from index.html", error);
+      console.error(
+        "[ChatbotWebPart] Failed to inject widget assets from index.html",
+        error,
+      );
     }
   }
 
-  public render(): React.ReactElement<IChatbotProps> {
-    return (
-      <div id={this.containerId} style={{ display: "none" }}></div>
-    );
+  public render(): React.ReactElement<IChatbotWidgetProps> {
+    return <div id={this.containerId} style={{ display: "none" }}></div>;
   }
 }

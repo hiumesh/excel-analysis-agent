@@ -16,12 +16,12 @@ class ModelConfig:
       - gpt-4.1-mini     : strong coding + reliable tool calling — for code execution
     """
 
-    ROUTER_MODEL: str = os.getenv("ROUTER_MODEL", "gemini-2.0-flash")
-    SUPERVISOR_MODEL: str = os.getenv("SUPERVISOR_MODEL", "gemini-2.0-flash")
-    PLANNING_MODEL: str = os.getenv("PLANNING_MODEL", "gemini-2.5-flash")
+    ROUTER_MODEL: str = os.getenv("ROUTER_MODEL", "gemini-3.1-flash-lite")
+    SUPERVISOR_MODEL: str = os.getenv("SUPERVISOR_MODEL", "gemini-3.1-flash-lite")
+    PLANNING_MODEL: str = os.getenv("PLANNING_MODEL", "gemini-3.1-flash-lite")
     CODING_MODEL: str = os.getenv("CODING_MODEL", "gpt-4.1-mini")
-    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
-    FOLLOWUP_MODEL: str = os.getenv("FOLLOWUP_MODEL", "gemini-2.0-flash")
+    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "gemini-3.1-flash-lite")
+    FOLLOWUP_MODEL: str = os.getenv("FOLLOWUP_MODEL", "gemini-3.1-flash-lite")
 
 
 class AgentConfig:

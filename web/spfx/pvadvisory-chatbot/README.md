@@ -1,4 +1,4 @@
-# pvadvisory-chatbot
+# chatbot
 
 ## Summary
 

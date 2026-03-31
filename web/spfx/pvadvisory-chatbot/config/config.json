@@ -5,8 +5,8 @@
     "chatbot-web-part": {
       "components": [
         {
-          "entrypoint": "./lib/webparts/chatbot/ChatbotWebPart.js",
-          "manifest": "./src/webparts/chatbot/ChatbotWebPart.manifest.json"
+          "entrypoint": "./lib/webparts/chatbotWidget/ChatbotWidgetWebPart.js",
+          "manifest": "./src/webparts/chatbotWidget/ChatbotWidgetWebPart.manifest.json"
         },
         {
           "entrypoint": "./lib/webparts/chatbotEmbed/ChatbotEmbedWebPart.js",
@@ -17,6 +17,6 @@
   },
   "externals": {},
   "localizedResources": {
-    "ChatbotWebPartStrings": "lib/webparts/chatbot/loc/{locale}.js"
+    "ChatbotWebPartStrings": "lib/webparts/chatbotWidget/loc/{locale}.js"
   }
 }

@@ -1,7 +1,7 @@
 {
   "@microsoft/generator-sharepoint": {
     "whichFolder": "subdir",
-    "solutionName": "pvadvisory-chatbot",
+    "solutionName": "chatbot",
     "environment": "spo",
     "skipFeatureDeployment": true,
     "useGulp": false,
@@ -13,10 +13,10 @@
     "nodeVersion": "24.13.0",
     "sdksVersions": {},
     "version": "1.22.2",
-    "libraryName": "pvadvisory-chatbot",
+    "libraryName": "chatbot",
     "libraryId": "4f67ba2a-4550-4059-8504-411e20d5f721",
     "packageManager": "npm",
-    "solutionShortDescription": "pvadvisory-chatbot description",
+    "solutionShortDescription": "chatbot description",
     "isDomainIsolated": false,
     "componentType": "webpart"
   }

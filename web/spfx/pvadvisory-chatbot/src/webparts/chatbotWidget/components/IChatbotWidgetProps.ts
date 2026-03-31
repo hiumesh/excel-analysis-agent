@@ -1,4 +1,4 @@
-export interface IChatbotProps {
+export interface IChatbotWidgetProps {
   widgetBaseUrl: string;
   isDarkTheme: boolean;
   environmentMessage: string;
